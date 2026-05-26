@@ -3262,7 +3262,7 @@ def prepare_df(dataset_name: str, return_map_dict: bool = False, read_map_dict: 
     
     # Set default path if not provided
     if not path:
-        path = os.path.join('C:\\Users\\User\\Jupyter Projects\\Research_2\\Datasets\\Video')
+        path = os.path.join('/home/dsi/eli-bogdanov/Datasets/video')
         
     # Define file names based on dataset name
     if dataset_name == '50salads':
@@ -3327,8 +3327,13 @@ def read_mapping_file(dataset_name: str) -> dict:
     Returns:
         dict: A dictionary mapping activities to string integers.
     """
-    # Construct the file path based on the dataset name
-    file_path = f'C:\\Users\\User\\Jupyter Projects\\Research_2\\Datasets\\Video\\mapping_{dataset_name}.txt'
+    mapping_candidates = [
+        os.path.join('/home/dsi/eli-bogdanov/Datasets/video', f'mapping_{dataset_name}.txt'),
+        os.path.join('/home/dsi/eli-bogdanov/data/data', dataset_name, 'mapping.txt'),
+        os.path.join('/home/dsi/eli-bogdanov/ASFormer/results', dataset_name, 'softmax', 'mapping.txt'),
+        os.path.join('/home/dsi/eli-bogdanov/MS-TCN2/results', dataset_name, 'softmax', 'mapping.txt'),
+    ]
+    file_path = next((path for path in mapping_candidates if os.path.exists(path)), mapping_candidates[0])
 
     # Initialize an empty dictionary
     activity_dict = {}

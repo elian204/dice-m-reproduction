@@ -2,7 +2,7 @@
 import os
 from typing import Dict, Tuple, Optional, Any, Union
 import pathlib
-from aaai_experiments import *
+from icpm_experiments import *
 
 # Third-party imports
 import numpy as np
