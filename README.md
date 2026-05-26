@@ -1,6 +1,6 @@
 # DICE-M Reproduction
 
-Private working repository for reproducing DICE and DICE with memory caching.
+Public working repository for reproducing DICE and DICE with memory caching.
 
 ## Provenance
 
