@@ -131,6 +131,15 @@ apply_trace_length_splits = false
 read_model_from_file = false
 
 [[datasets]]
+name = "50Salads"
+category = "long_logs"
+subfolder = "video"
+df_name = "50salads_log.csv"
+window_lengths_lst = [20]
+apply_trace_length_splits = false
+read_model_from_file = false
+
+[[datasets]]
 name = "Breakfast"
 category = "long_logs"
 subfolder = "video"
@@ -145,12 +154,3 @@ train_cases = [
   "385", "243", "553", "386", "48",
   "841", "877", "321", "226", "670",
 ]
-
-[[datasets]]
-name = "50Salads"
-category = "long_logs"
-subfolder = "video"
-df_name = "50salads_log.csv"
-window_lengths_lst = [20]
-apply_trace_length_splits = false
-read_model_from_file = false

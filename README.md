@@ -29,7 +29,8 @@ working DICE-M source layout and should evolve in small, reviewable commits.
   when comparing cost deviations.
 - The cost comparison is evaluated on unique test trace variants only, with one
   representative case per variant.
-- GTEA, Breakfast, and 50Salads run only with window length 20.
+- GTEA, 50Salads, and Breakfast run last, in that order, using only window
+  length 20.
 - Breakfast uses the fixed 15 training traces recovered from the original
   experiment setup; testing uses one representative case per remaining trace
   variant.
@@ -57,6 +58,12 @@ python run_dice_memo_comparison.py
 
 The runner writes each run directory as soon as that run finishes, and updates
 `aggregate_comparison.csv` plus `dataset_summary.csv` after every completed run.
+It also updates `run_status.txt` and `run_status.json` so long runs can be
+checked later:
+
+```bash
+python run_dice_memo_comparison.py --show-status
+```
 
 For a small smoke run, select a single run and cap the filtered input traces:
 

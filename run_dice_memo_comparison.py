@@ -9,6 +9,7 @@ import re
 import sys
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -443,6 +444,93 @@ def write_incremental_summaries(output_root: Path, aggregate_rows: List[Dict[str
     dataset_summary.to_csv(dataset_summary_path, index=False)
 
 
+def now_iso() -> str:
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def describe_run(run: ExperimentRun) -> Dict[str, Any]:
+    return {
+        "run_id": run.run_id,
+        "dataset": run.dataset_name,
+        "category": run.category,
+        "trace_split": run.split_name or "all",
+        "window_len": run.window_len,
+    }
+
+
+def write_run_status(
+    output_root: Path,
+    state: str,
+    runs: List[ExperimentRun],
+    aggregate_rows: List[Dict[str, Any]],
+    batch_started_at: str,
+    current_index: Optional[int] = None,
+    current_run: Optional[ExperimentRun] = None,
+    current_run_started_at: Optional[str] = None,
+    error: Optional[str] = None,
+) -> None:
+    completed_ids = [str(row["run_id"]) for row in aggregate_rows]
+    completed_set = set(completed_ids)
+    next_runs = [
+        describe_run(run)
+        for run in runs
+        if run.run_id not in completed_set and (current_run is None or run.run_id != current_run.run_id)
+    ][:5]
+
+    status = {
+        "state": state,
+        "updated_at": now_iso(),
+        "batch_started_at": batch_started_at,
+        "current_run_started_at": current_run_started_at,
+        "output_dir": str(output_root),
+        "total_runs": len(runs),
+        "completed_runs": len(aggregate_rows),
+        "remaining_runs": len(runs) - len(aggregate_rows),
+        "current_index": current_index,
+        "current_run": describe_run(current_run) if current_run is not None else None,
+        "last_completed_run": completed_ids[-1] if completed_ids else None,
+        "next_runs": next_runs,
+        "completed_run_ids": completed_ids,
+        "error": error,
+    }
+    (output_root / "run_status.json").write_text(json.dumps(status, indent=2, sort_keys=True))
+
+    lines = [
+        f"state: {status['state']}",
+        f"updated_at: {status['updated_at']}",
+        f"batch_started_at: {status['batch_started_at']}",
+        f"progress: {status['completed_runs']}/{status['total_runs']} completed",
+        f"remaining_runs: {status['remaining_runs']}",
+        f"last_completed_run: {status['last_completed_run'] or 'none'}",
+    ]
+    if current_run is not None:
+        lines.extend(
+            [
+                f"current_run: [{current_index}/{len(runs)}] {current_run.run_id}",
+                f"current_run_started_at: {current_run_started_at}",
+            ]
+        )
+    if error:
+        lines.append(f"error: {error}")
+    if next_runs:
+        lines.append("next_runs:")
+        lines.extend(f"- {run['run_id']}" for run in next_runs)
+    (output_root / "run_status.txt").write_text("\n".join(lines) + "\n")
+
+
+def show_status(output_root: Path) -> int:
+    text_path = output_root / "run_status.txt"
+    json_path = output_root / "run_status.json"
+    if text_path.exists():
+        print(text_path.read_text().rstrip())
+        return 0
+    if json_path.exists():
+        print(json.dumps(json.loads(json_path.read_text()), indent=2, sort_keys=True))
+        return 0
+    print(f"No run status found under: {output_root}", file=sys.stderr)
+    return 1
+
+
 def run_experiment(
     run: ExperimentRun,
     output_root: Path,
@@ -525,6 +613,11 @@ def parse_args() -> argparse.Namespace:
         type=int,
         help="Override n_traces after filtering. Useful for smoke tests.",
     )
+    parser.add_argument(
+        "--show-status",
+        action="store_true",
+        help="Print the latest run_status.txt from the output directory and exit.",
+    )
     return parser.parse_args()
 
 
@@ -543,6 +636,10 @@ def main() -> int:
 
     if args.limit_runs is not None:
         runs = runs[: args.limit_runs]
+
+    output_root = args.output_dir or Path(config["paths"]["output_dir"])
+    if args.show_status:
+        return show_status(output_root)
 
     for run in runs:
         split = run.split_name or "all"
@@ -570,14 +667,26 @@ def main() -> int:
         return 2
 
     defaults = config["defaults"]
-    output_root = args.output_dir or Path(config["paths"]["output_dir"])
     output_root.mkdir(parents=True, exist_ok=True)
 
     aggregate_rows = []
+    batch_started_at = now_iso()
+    write_run_status(output_root, "starting", runs, aggregate_rows, batch_started_at)
     for index, run in enumerate(runs, start=1):
         print(f"\n[{index}/{len(runs)}] Running {run.run_id}")
-        aggregate_rows.append(
-            run_experiment(
+        current_run_started_at = now_iso()
+        write_run_status(
+            output_root,
+            "running",
+            runs,
+            aggregate_rows,
+            batch_started_at,
+            current_index=index,
+            current_run=run,
+            current_run_started_at=current_run_started_at,
+        )
+        try:
+            aggregate = run_experiment(
                 run,
                 output_root=output_root,
                 save_summary_csvs=bool(defaults.get("save_summary_csvs", True)),
@@ -585,12 +694,35 @@ def main() -> int:
                 save_full_alignments=bool(defaults.get("save_full_alignments", False)),
                 force_rerun=args.force_rerun,
             )
-        )
+        except Exception as exc:
+            write_run_status(
+                output_root,
+                "failed",
+                runs,
+                aggregate_rows,
+                batch_started_at,
+                current_index=index,
+                current_run=run,
+                current_run_started_at=current_run_started_at,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+            raise
+        aggregate_rows.append(aggregate)
         write_incremental_summaries(output_root, aggregate_rows)
+        write_run_status(
+            output_root,
+            "completed_run",
+            runs,
+            aggregate_rows,
+            batch_started_at,
+            current_index=index,
+        )
         print(f"Wrote incremental summaries under: {output_root}")
 
+    write_run_status(output_root, "completed", runs, aggregate_rows, batch_started_at)
     print(f"\nWrote aggregate comparison: {output_root / 'aggregate_comparison.csv'}")
     print(f"Wrote dataset summary: {output_root / 'dataset_summary.csv'}")
+    print(f"Wrote run status: {output_root / 'run_status.txt'}")
     return 0
 
 
