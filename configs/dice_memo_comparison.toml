@@ -1,6 +1,6 @@
 [paths]
 data_root = "/home/dsi/eli-bogdanov/Datasets"
-output_dir = "dice_memo_comparison"
+output_dir = "dice_memo_comparison_unique_test_variants"
 
 [defaults]
 n_train_traces = 10
@@ -14,7 +14,8 @@ max_successive_merges = 2
 non_sync_penalty = 1
 allow_variant_intersection = true
 unique_train_variants = false
-unique_test_variants = false
+# Cost comparison is evaluated once per trace variant, not once per repeated case.
+unique_test_variants = true
 save_full_alignments = false
 save_summary_csvs = true
 save_per_trace_results = true

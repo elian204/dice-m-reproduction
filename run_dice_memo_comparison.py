@@ -21,7 +21,9 @@ except ModuleNotFoundError:
 
 from icpm_experiments import (
     compare_window_based_baselines,
+    get_case_variants,
     load_and_preprocess_log,
+    select_unique_variant_cases,
     train_test_log_split_simplified,
 )
 
@@ -173,9 +175,12 @@ def split_by_fixed_cases(
     df: pd.DataFrame,
     run: ExperimentRun,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    case_series = df["case:concept:name"].astype(str)
+    variant_df = df.copy()
+    variant_df["case:concept:name"] = variant_df["case:concept:name"].astype(str)
+    case_series = variant_df["case:concept:name"]
     available_cases = list(dict.fromkeys(case_series.tolist()))
     available_case_set = set(available_cases)
+    case_variants = get_case_variants(variant_df)
 
     if run.test_cases is None:
         test_cases = None
@@ -200,10 +205,19 @@ def split_by_fixed_cases(
         missing_train = sorted(set(train_cases) - available_case_set)
         if missing_train:
             raise ValueError(f"{run.run_id} train_cases not found after filtering: {missing_train}")
+        if run.unique_train_variants:
+            train_cases = select_unique_variant_cases(train_cases, case_variants, random_seed=run.random_seed)
 
     if test_cases is None:
         train_case_set = set(train_cases)
         test_cases = [case for case in available_cases if case not in train_case_set]
+
+    if not run.allow_variant_intersection:
+        train_variants = {case_variants[case] for case in train_cases}
+        test_cases = [case for case in test_cases if case_variants[case] not in train_variants]
+
+    if run.unique_test_variants:
+        test_cases = select_unique_variant_cases(test_cases, case_variants, random_seed=run.random_seed)
 
     overlap = sorted(set(train_cases) & set(test_cases))
     if overlap:
@@ -240,6 +254,12 @@ def split_log_once(run: ExperimentRun) -> tuple[pd.DataFrame, pd.DataFrame, Dict
         unique_test_variants=run.unique_test_variants,
     )
     return split["train_df"], split["test_df"], map_dict, df
+
+
+def count_trace_variants(df: pd.DataFrame) -> int:
+    variant_df = df.copy()
+    variant_df["case:concept:name"] = variant_df["case:concept:name"].astype(str)
+    return len(set(get_case_variants(variant_df).values()))
 
 
 def run_variant(
@@ -406,6 +426,9 @@ def run_experiment(
         "n_filtered_events": int(len(filtered_df)),
         "n_train_cases": int(train_df["case:concept:name"].nunique()),
         "n_test_cases": int(test_df["case:concept:name"].nunique()),
+        "n_filtered_trace_variants": count_trace_variants(filtered_df),
+        "n_train_trace_variants": count_trace_variants(train_df),
+        "n_test_trace_variants": count_trace_variants(test_df),
         "n_train_events": int(len(train_df)),
         "n_test_events": int(len(test_df)),
     }
@@ -484,7 +507,8 @@ def main() -> int:
         )
         print(
             f"{run.run_id}: dataset={run.dataset_name} category={run.category} "
-            f"split={split} window={run.window_len} {train_desc} file={run.subfolder}/{run.df_name}"
+            f"split={split} window={run.window_len} {train_desc} "
+            f"unique_test={run.unique_test_variants} file={run.subfolder}/{run.df_name}"
         )
 
     if args.validate_paths:
