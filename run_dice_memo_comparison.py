@@ -301,7 +301,18 @@ def aggregate_comparison(run: ExperimentRun, comparison: pd.DataFrame, dice_wall
         "mean_memo_nodes_opened": float(comparison["memo_nodes_opened"].mean()) if len(comparison) else math.nan,
         "dice_wall_time": dice_wall,
         "memo_wall_time": memo_wall,
+        "skipped_existing": False,
     }
+
+
+def load_completed_aggregate(run_dir: Path) -> Optional[Dict[str, Any]]:
+    aggregate_path = run_dir / "aggregate.json"
+    comparison_path = run_dir / "comparison.csv"
+    if not aggregate_path.exists() or not comparison_path.exists():
+        return None
+    aggregate = json.loads(aggregate_path.read_text())
+    aggregate["skipped_existing"] = True
+    return aggregate
 
 
 def run_experiment(
@@ -310,10 +321,17 @@ def run_experiment(
     save_summary_csvs: bool,
     save_per_trace_results: bool,
     save_full_alignments: bool,
+    force_rerun: bool,
 ) -> Dict[str, Any]:
     validate_run_paths(run)
     run_dir = output_root / run.run_id
     run_dir.mkdir(parents=True, exist_ok=True)
+
+    if not force_rerun:
+        completed = load_completed_aggregate(run_dir)
+        if completed is not None:
+            print(f"Skipping completed run: {run.run_id}")
+            return completed
 
     train_df, test_df, map_dict, filtered_df = split_log_once(run)
     if test_df.empty:
@@ -365,6 +383,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--validate-paths", action="store_true", help="Validate selected dataset/model paths and exit.")
     parser.add_argument("--run-id", action="append", help="Run only a specific run_id. Can be provided multiple times.")
     parser.add_argument("--limit-runs", type=int, help="Run only the first N selected runs.")
+    parser.add_argument(
+        "--force-rerun",
+        action="store_true",
+        help="Rerun selected experiments even if aggregate.json and comparison.csv already exist.",
+    )
     parser.add_argument(
         "--max-input-traces",
         type=int,
@@ -422,6 +445,7 @@ def main() -> int:
                 save_summary_csvs=bool(defaults.get("save_summary_csvs", True)),
                 save_per_trace_results=bool(defaults.get("save_per_trace_results", True)),
                 save_full_alignments=bool(defaults.get("save_full_alignments", False)),
+                force_rerun=args.force_rerun,
             )
         )
 
