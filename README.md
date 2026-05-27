@@ -27,6 +27,8 @@ working DICE-M source layout and should evolve in small, reviewable commits.
 - Run DICE-M with `use_memo=True`.
 - Keep train/test splits, random seeds, window lengths, and model inputs fixed
   when comparing cost deviations.
+- Breakfast uses the fixed 15 training traces recovered from the original
+  experiment setup; all remaining Breakfast traces are used for testing.
 
 ## Paired Experiment Runner
 

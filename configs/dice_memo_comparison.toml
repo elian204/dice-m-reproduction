@@ -138,6 +138,12 @@ window_lengths_lst = [20, 30]
 apply_trace_length_splits = false
 read_model_from_file = false
 n_train_traces = 15
+# Fixed training traces recovered from the original Breakfast experiment setup.
+train_cases = [
+  "649", "357", "542", "834", "1006",
+  "385", "243", "553", "386", "48",
+  "841", "877", "321", "226", "670",
+]
 
 [[datasets]]
 name = "50Salads"

@@ -4,6 +4,7 @@ import argparse
 import json
 import math
 import pickle
+import random
 import re
 import sys
 import time
@@ -39,6 +40,8 @@ class ExperimentRun:
     max_len: Optional[int]
     n_train_traces: int
     n_test_traces: Optional[int]
+    train_cases: Optional[List[str]]
+    test_cases: Optional[List[str]]
     n_traces: Optional[int]
     random_seed: int
     n_final_markings_lst: List[int]
@@ -66,6 +69,14 @@ def optional_int(value: Any) -> Optional[int]:
     if value is None:
         return None
     return int(value)
+
+
+def optional_str_list(value: Any) -> Optional[List[str]]:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        return [value]
+    return [str(item) for item in value]
 
 
 def load_config(path: Path) -> Dict[str, Any]:
@@ -113,6 +124,8 @@ def build_runs(config: Dict[str, Any], max_input_traces: Optional[int] = None) -
                         max_len=optional_int(dataset.get("max_len", split_cfg.get("max_len", defaults.get("max_len")))),
                         n_train_traces=int(dataset.get("n_train_traces", defaults["n_train_traces"])),
                         n_test_traces=optional_int(dataset.get("n_test_traces", defaults.get("n_test_traces"))),
+                        train_cases=optional_str_list(dataset.get("train_cases", defaults.get("train_cases"))),
+                        test_cases=optional_str_list(dataset.get("test_cases", defaults.get("test_cases"))),
                         n_traces=optional_int(n_traces),
                         random_seed=int(dataset.get("random_seed", defaults["random_seed"])),
                         n_final_markings_lst=list(dataset.get("n_final_markings_lst", defaults["n_final_markings_lst"])),
@@ -156,6 +169,51 @@ def validate_run_paths(run: ExperimentRun) -> None:
             raise FileNotFoundError(f"Model file not found for {run.run_id}: {run.model_path}")
 
 
+def split_by_fixed_cases(
+    df: pd.DataFrame,
+    run: ExperimentRun,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    case_series = df["case:concept:name"].astype(str)
+    available_cases = list(dict.fromkeys(case_series.tolist()))
+    available_case_set = set(available_cases)
+
+    if run.test_cases is None:
+        test_cases = None
+    else:
+        test_cases = [str(case) for case in run.test_cases]
+        missing_test = sorted(set(test_cases) - available_case_set)
+        if missing_test:
+            raise ValueError(f"{run.run_id} test_cases not found after filtering: {missing_test}")
+
+    if run.train_cases is None:
+        if test_cases is None:
+            raise ValueError(f"{run.run_id} has fixed-case splitting enabled without train_cases or test_cases")
+        candidate_train_cases = [case for case in available_cases if case not in set(test_cases)]
+        if run.n_train_traces > len(candidate_train_cases):
+            raise ValueError(
+                f"{run.run_id} requested {run.n_train_traces} train cases but only "
+                f"{len(candidate_train_cases)} are available outside test_cases"
+            )
+        train_cases = random.Random(run.random_seed).sample(candidate_train_cases, run.n_train_traces)
+    else:
+        train_cases = [str(case) for case in run.train_cases]
+        missing_train = sorted(set(train_cases) - available_case_set)
+        if missing_train:
+            raise ValueError(f"{run.run_id} train_cases not found after filtering: {missing_train}")
+
+    if test_cases is None:
+        train_case_set = set(train_cases)
+        test_cases = [case for case in available_cases if case not in train_case_set]
+
+    overlap = sorted(set(train_cases) & set(test_cases))
+    if overlap:
+        raise ValueError(f"{run.run_id} has cases in both train_cases and test_cases: {overlap}")
+
+    train_df = df[case_series.isin(set(train_cases))].copy()
+    test_df = df[case_series.isin(set(test_cases))].copy()
+    return train_df, test_df
+
+
 def split_log_once(run: ExperimentRun) -> tuple[pd.DataFrame, pd.DataFrame, Dict[Any, str], pd.DataFrame]:
     df, map_dict = load_and_preprocess_log(
         run.df_name,
@@ -168,6 +226,10 @@ def split_log_once(run: ExperimentRun) -> tuple[pd.DataFrame, pd.DataFrame, Dict
         max_samples_per_activity=run.max_samples_per_activity,
         stats=None,
     )
+    if run.train_cases is not None or run.test_cases is not None:
+        train_df, test_df = split_by_fixed_cases(df, run)
+        return train_df, test_df, map_dict, df
+
     split = train_test_log_split_simplified(
         df,
         n_train_traces=run.n_train_traces,
@@ -339,6 +401,7 @@ def run_experiment(
 
     metadata = {
         **run.__dict__,
+        "split_mode": "fixed_cases" if (run.train_cases is not None or run.test_cases is not None) else "random_seed",
         "n_filtered_cases": int(filtered_df["case:concept:name"].nunique()),
         "n_filtered_events": int(len(filtered_df)),
         "n_train_cases": int(train_df["case:concept:name"].nunique()),
@@ -414,9 +477,14 @@ def main() -> int:
 
     for run in runs:
         split = run.split_name or "all"
+        train_desc = (
+            f"fixed_train={len(run.train_cases)}"
+            if run.train_cases is not None
+            else f"n_train={run.n_train_traces}"
+        )
         print(
             f"{run.run_id}: dataset={run.dataset_name} category={run.category} "
-            f"split={split} window={run.window_len} file={run.subfolder}/{run.df_name}"
+            f"split={split} window={run.window_len} {train_desc} file={run.subfolder}/{run.df_name}"
         )
 
     if args.validate_paths:
