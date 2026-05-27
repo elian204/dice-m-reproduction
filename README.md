@@ -27,3 +27,32 @@ working DICE-M source layout and should evolve in small, reviewable commits.
 - Run DICE-M with `use_memo=True`.
 - Keep train/test splits, random seeds, window lengths, and model inputs fixed
   when comparing cost deviations.
+
+## Paired Experiment Runner
+
+List the configured DICE vs DICE-M paired runs:
+
+```bash
+python run_dice_memo_comparison.py --list-runs
+```
+
+Validate configured dataset/model paths without executing experiments:
+
+```bash
+python run_dice_memo_comparison.py --validate-paths
+```
+
+Run all configured experiments and write outputs under `dice_memo_comparison/`:
+
+```bash
+python run_dice_memo_comparison.py
+```
+
+For a small smoke run, select a single run and cap the filtered input traces:
+
+```bash
+python run_dice_memo_comparison.py \
+  --run-id BPIC_2012__Set_2__w10 \
+  --max-input-traces 12 \
+  --output-dir /tmp/dice_memo_smoke
+```

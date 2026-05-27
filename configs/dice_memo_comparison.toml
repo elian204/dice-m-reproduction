@@ -1,0 +1,149 @@
+[paths]
+data_root = "/home/dsi/eli-bogdanov/Datasets"
+output_dir = "dice_memo_comparison"
+
+[defaults]
+n_train_traces = 10
+random_seed = 42
+n_final_markings_lst = [1]
+window_overlap = 0
+use_heuristics = true
+nonsync_density_tolerance = 0.1
+portion = 0.2
+max_successive_merges = 2
+non_sync_penalty = 1
+allow_variant_intersection = true
+unique_train_variants = false
+unique_test_variants = false
+save_full_alignments = false
+save_summary_csvs = true
+save_per_trace_results = true
+
+[trace_length_splits.Set_1]
+description = "traces with length >= 80"
+min_len = 80
+
+[trace_length_splits.Set_2]
+description = "traces with length < 80"
+max_len = 79
+
+[[datasets]]
+name = "BPIC_2012"
+category = "standard_logs"
+subfolder = "bpi"
+df_name = "bpi_2012.csv"
+window_lengths_lst = [10]
+apply_trace_length_splits = true
+read_model_from_file = false
+
+[[datasets]]
+name = "BPIC_2017"
+category = "standard_logs"
+subfolder = "bpi"
+df_name = "bpi_2017.csv"
+window_lengths_lst = [10]
+apply_trace_length_splits = true
+read_model_from_file = false
+
+[[datasets]]
+name = "BPIC_2019"
+category = "standard_logs"
+subfolder = "bpi"
+df_name = "bpi_2019.csv"
+window_lengths_lst = [10]
+apply_trace_length_splits = true
+read_model_from_file = false
+
+[[datasets]]
+name = "A48-m37"
+category = "noisy_model_logs"
+subfolder = "prSomething/A48"
+df_name = "pr-3-11-1151-A48_m37_l3_noise.csv"
+window_lengths_lst = [20]
+apply_trace_length_splits = true
+read_model_from_file = true
+model_path = "/home/dsi/eli-bogdanov/Datasets/prSomething/A48/pr-3-11-1151-A48.txt"
+max_successive_merges = 5
+
+[[datasets]]
+name = "A48-m50"
+category = "noisy_model_logs"
+subfolder = "prSomething/A48"
+df_name = "pr-3-11-1151-A48_m50_l4_noise.csv"
+window_lengths_lst = [20]
+apply_trace_length_splits = true
+read_model_from_file = true
+model_path = "/home/dsi/eli-bogdanov/Datasets/prSomething/A48/pr-3-11-1151-A48.txt"
+max_successive_merges = 5
+
+[[datasets]]
+name = "A57-m39"
+category = "noisy_model_logs"
+subfolder = "prSomething/A57"
+df_name = "pr-8-11-1912-A57_m39_l3_noise.csv"
+window_lengths_lst = [20]
+apply_trace_length_splits = true
+read_model_from_file = true
+model_path = "/home/dsi/eli-bogdanov/Datasets/prSomething/A57/pr-8-11-1912-A57.txt"
+max_successive_merges = 5
+
+[[datasets]]
+name = "A57-m52"
+category = "noisy_model_logs"
+subfolder = "prSomething/A57"
+df_name = "pr-8-11-1912-A57_m52_l4_noise.csv"
+window_lengths_lst = [20]
+apply_trace_length_splits = true
+read_model_from_file = true
+model_path = "/home/dsi/eli-bogdanov/Datasets/prSomething/A57/pr-8-11-1912-A57.txt"
+max_successive_merges = 5
+
+[[datasets]]
+name = "A59-m41"
+category = "noisy_model_logs"
+subfolder = "prSomething/A59"
+df_name = "pr-1-11-1244-A59_m41_l3_noise.csv"
+window_lengths_lst = [20]
+apply_trace_length_splits = true
+read_model_from_file = true
+model_path = "/home/dsi/eli-bogdanov/Datasets/prSomething/A59/pr-1-11-1244-A59.txt"
+max_successive_merges = 5
+
+[[datasets]]
+name = "A59-m55"
+category = "noisy_model_logs"
+subfolder = "prSomething/A59"
+df_name = "pr-1-11-1244-A59_m55_l4_noise.csv"
+window_lengths_lst = [20]
+apply_trace_length_splits = true
+read_model_from_file = true
+model_path = "/home/dsi/eli-bogdanov/Datasets/prSomething/A59/pr-1-11-1244-A59.txt"
+max_successive_merges = 5
+
+[[datasets]]
+name = "GTEA"
+category = "long_logs"
+subfolder = "video"
+df_name = "gtea_log.csv"
+window_lengths_lst = [20, 30]
+apply_trace_length_splits = false
+read_model_from_file = false
+
+[[datasets]]
+name = "Breakfast"
+category = "long_logs"
+subfolder = "video"
+df_name = "breakfast_log.csv"
+window_lengths_lst = [20, 30]
+apply_trace_length_splits = false
+read_model_from_file = false
+n_train_traces = 15
+
+[[datasets]]
+name = "50Salads"
+category = "long_logs"
+subfolder = "video"
+df_name = "50salads_log.csv"
+window_lengths_lst = [20, 30]
+apply_trace_length_splits = false
+read_model_from_file = false

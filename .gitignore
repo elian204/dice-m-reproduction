@@ -11,6 +11,7 @@ results/
 runs/
 outputs/
 artifacts/
+dice_memo_comparison/
 
 *.alignments.pkl
 *.tmp
