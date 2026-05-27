@@ -397,6 +397,52 @@ def load_completed_aggregate(run_dir: Path) -> Optional[Dict[str, Any]]:
     return aggregate
 
 
+def weighted_mean(rows: pd.DataFrame, column: str) -> float:
+    n_cases = rows["n_cases"].sum()
+    if n_cases == 0:
+        return math.nan
+    return float((rows[column] * rows["n_cases"]).sum() / n_cases)
+
+
+def build_dataset_summary(aggregate_df: pd.DataFrame) -> pd.DataFrame:
+    dataset_rows = []
+    for (dataset, category), rows in aggregate_df.groupby(["dataset", "category"], sort=False):
+        n_cases = int(rows["n_cases"].sum())
+        n_cost_mismatches = int(rows["n_cost_mismatches"].sum())
+        dataset_rows.append(
+            {
+                "dataset": dataset,
+                "category": category,
+                "n_runs": int(len(rows)),
+                "trace_splits": ",".join(sorted({str(value) for value in rows["trace_split"]})),
+                "window_lengths": ",".join(sorted({str(value) for value in rows["window_len"]})),
+                "n_cases": n_cases,
+                "n_cost_mismatches": n_cost_mismatches,
+                "cost_match_rate": math.nan if n_cases == 0 else 1.0 - (n_cost_mismatches / n_cases),
+                "max_abs_cost_delta": float(rows["max_abs_cost_delta"].max()) if len(rows) else math.nan,
+                "mean_abs_cost_delta": weighted_mean(rows, "mean_abs_cost_delta"),
+                "mean_cost_delta": weighted_mean(rows, "mean_cost_delta"),
+                "mean_dice_cost": weighted_mean(rows, "mean_dice_cost"),
+                "mean_memo_cost": weighted_mean(rows, "mean_memo_cost"),
+                "mean_dice_time": weighted_mean(rows, "mean_dice_time"),
+                "mean_memo_time": weighted_mean(rows, "mean_memo_time"),
+                "dice_wall_time": float(rows["dice_wall_time"].sum()),
+                "memo_wall_time": float(rows["memo_wall_time"].sum()),
+            }
+        )
+    return pd.DataFrame(dataset_rows)
+
+
+def write_incremental_summaries(output_root: Path, aggregate_rows: List[Dict[str, Any]]) -> None:
+    aggregate_df = pd.DataFrame(aggregate_rows)
+    aggregate_path = output_root / "aggregate_comparison.csv"
+    aggregate_df.to_csv(aggregate_path, index=False)
+
+    dataset_summary = build_dataset_summary(aggregate_df)
+    dataset_summary_path = output_root / "dataset_summary.csv"
+    dataset_summary.to_csv(dataset_summary_path, index=False)
+
+
 def run_experiment(
     run: ExperimentRun,
     output_root: Path,
@@ -540,11 +586,11 @@ def main() -> int:
                 force_rerun=args.force_rerun,
             )
         )
+        write_incremental_summaries(output_root, aggregate_rows)
+        print(f"Wrote incremental summaries under: {output_root}")
 
-    aggregate_df = pd.DataFrame(aggregate_rows)
-    aggregate_path = output_root / "aggregate_comparison.csv"
-    aggregate_df.to_csv(aggregate_path, index=False)
-    print(f"\nWrote aggregate comparison: {aggregate_path}")
+    print(f"\nWrote aggregate comparison: {output_root / 'aggregate_comparison.csv'}")
+    print(f"Wrote dataset summary: {output_root / 'dataset_summary.csv'}")
     return 0
 
 

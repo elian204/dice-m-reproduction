@@ -29,6 +29,7 @@ working DICE-M source layout and should evolve in small, reviewable commits.
   when comparing cost deviations.
 - The cost comparison is evaluated on unique test trace variants only, with one
   representative case per variant.
+- GTEA, Breakfast, and 50Salads run only with window length 20.
 - Breakfast uses the fixed 15 training traces recovered from the original
   experiment setup; testing uses one representative case per remaining trace
   variant.
@@ -47,11 +48,15 @@ Validate configured dataset/model paths without executing experiments:
 python run_dice_memo_comparison.py --validate-paths
 ```
 
-Run all configured experiments and write outputs under `dice_memo_comparison/`:
+Run all configured experiments and write outputs under
+`dice_memo_comparison_unique_test_variants/`:
 
 ```bash
 python run_dice_memo_comparison.py
 ```
+
+The runner writes each run directory as soon as that run finishes, and updates
+`aggregate_comparison.csv` plus `dataset_summary.csv` after every completed run.
 
 For a small smoke run, select a single run and cap the filtered input traces:
 
