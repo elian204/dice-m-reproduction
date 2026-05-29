@@ -1,5 +1,6 @@
 import pandas as pd  
 import numpy as np  
+import copy
 import random 
 import time  
 from typing import List, Dict, Tuple, DefaultDict, Union, Optional, Any
@@ -1217,7 +1218,8 @@ def compare_window_based_baselines(
     portion: float = 0.2,
     nonsync_density_tolerance: float = 0.1,
     use_memo: bool = False,
-    max_successive_merges: int = 5
+    max_successive_merges: int = 5,
+    precomputed_model: Any = None,
 ) -> Union[
     Tuple[pd.DataFrame, Any],
     Tuple[pd.DataFrame, Any, pd.DataFrame]
@@ -1380,7 +1382,9 @@ def compare_window_based_baselines(
         return stats_local
 
     def prepare_conformance_model(train_df_local: pd.DataFrame):
-        if read_model_from_file:
+        if precomputed_model is not None:
+            m = copy.deepcopy(precomputed_model)
+        elif read_model_from_file:
             if not model_path or not map_dict:
                 raise ValueError("Both 'model_path' and 'map_dict' must be provided when reading a model from a file.")
             m = generate_model_from_file(
@@ -1390,7 +1394,7 @@ def compare_window_based_baselines(
             )
         else:
             m = prepare_model(train_df_local, non_sync_penalty)
-        if use_heuristics:
+        if use_heuristics and (m.mandatory_transitions_map is None or m.alive_transitions_map is None):
             m = add_transition_mappings_to_model(m)
         return m
 

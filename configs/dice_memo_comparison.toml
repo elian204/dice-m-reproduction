@@ -1,6 +1,7 @@
 [paths]
 data_root = "/home/dsi/eli-bogdanov/Datasets"
 output_dir = "dice_memo_comparison_unique_test_variants"
+model_artifact_dir = "model_artifacts/dice_memo_comparison_unique_test_variants"
 
 [defaults]
 n_train_traces = 10
@@ -19,6 +20,7 @@ unique_test_variants = true
 save_full_alignments = false
 save_summary_csvs = true
 save_per_trace_results = true
+use_model_artifacts = true
 
 [trace_length_splits.Set_1]
 description = "traces with length >= 80"

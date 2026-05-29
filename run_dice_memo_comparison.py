@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import math
 import pickle
@@ -60,6 +61,8 @@ class ExperimentRun:
     max_samples_per_activity: Optional[int]
     read_model_from_file: bool
     model_path: Optional[str]
+    use_model_artifact: bool
+    model_artifact_path: Optional[str]
 
 
 def slugify(value: str) -> str:
@@ -91,6 +94,7 @@ def build_runs(config: Dict[str, Any], max_input_traces: Optional[int] = None) -
     paths = config["paths"]
     defaults = config["defaults"]
     splits = config.get("trace_length_splits", {})
+    model_artifact_dir = paths.get("model_artifact_dir")
     runs: List[ExperimentRun] = []
 
     for dataset in config["datasets"]:
@@ -112,6 +116,15 @@ def build_runs(config: Dict[str, Any], max_input_traces: Optional[int] = None) -
                     f"w{window_len}",
                 ]
                 run_id = slugify("__".join(run_name_parts))
+                model_artifact_path = dataset.get("model_artifact_path")
+                if model_artifact_path is None and model_artifact_dir:
+                    model_artifact_path = str(Path(model_artifact_dir) / run_id / "model.pkl.gz")
+
+                use_model_artifact = bool(
+                    dataset.get("use_model_artifacts", defaults.get("use_model_artifacts", False))
+                )
+                if max_input_traces is not None:
+                    use_model_artifact = False
 
                 runs.append(
                     ExperimentRun(
@@ -156,6 +169,8 @@ def build_runs(config: Dict[str, Any], max_input_traces: Optional[int] = None) -
                         ),
                         read_model_from_file=bool(dataset.get("read_model_from_file", False)),
                         model_path=dataset.get("model_path"),
+                        use_model_artifact=use_model_artifact,
+                        model_artifact_path=model_artifact_path,
                     )
                 )
     return runs
@@ -263,12 +278,26 @@ def count_trace_variants(df: pd.DataFrame) -> int:
     return len(set(get_case_variants(variant_df).values()))
 
 
+def load_model_artifact(run: ExperimentRun) -> Optional[Any]:
+    if not run.use_model_artifact or not run.model_artifact_path:
+        return None
+
+    artifact_path = Path(run.model_artifact_path)
+    if not artifact_path.exists():
+        return None
+
+    print(f"Loading model artifact for {run.run_id}: {artifact_path}")
+    with gzip.open(artifact_path, "rb") as handle:
+        return pickle.load(handle)
+
+
 def run_variant(
     run: ExperimentRun,
     train_df: pd.DataFrame,
     test_df: pd.DataFrame,
     map_dict: Dict[Any, str],
     use_memo: bool,
+    precomputed_model: Optional[Any] = None,
 ) -> tuple[pd.DataFrame, Dict[str, Dict[str, list]], float]:
     start = time.time()
     summary_df, _model, raw_results = compare_window_based_baselines(
@@ -291,6 +320,7 @@ def run_variant(
         nonsync_density_tolerance=run.nonsync_density_tolerance,
         use_memo=use_memo,
         max_successive_merges=run.max_successive_merges,
+        precomputed_model=precomputed_model,
     )
     return summary_df, raw_results, time.time() - start
 
@@ -553,9 +583,12 @@ def run_experiment(
     if test_df.empty:
         raise ValueError(f"{run.run_id} produced an empty test split")
 
+    precomputed_model = load_model_artifact(run)
+
     metadata = {
         **run.__dict__,
         "split_mode": "fixed_cases" if (run.train_cases is not None or run.test_cases is not None) else "random_seed",
+        "model_artifact_loaded": precomputed_model is not None,
         "n_filtered_cases": int(filtered_df["case:concept:name"].nunique()),
         "n_filtered_events": int(len(filtered_df)),
         "n_train_cases": int(train_df["case:concept:name"].nunique()),
@@ -570,8 +603,12 @@ def run_experiment(
     train_df.to_csv(run_dir / "train_split.csv", index=False)
     test_df.to_csv(run_dir / "test_split.csv", index=False)
 
-    dice_summary, dice_raw, dice_wall = run_variant(run, train_df, test_df, map_dict, use_memo=False)
-    memo_summary, memo_raw, memo_wall = run_variant(run, train_df, test_df, map_dict, use_memo=True)
+    dice_summary, dice_raw, dice_wall = run_variant(
+        run, train_df, test_df, map_dict, use_memo=False, precomputed_model=precomputed_model
+    )
+    memo_summary, memo_raw, memo_wall = run_variant(
+        run, train_df, test_df, map_dict, use_memo=True, precomputed_model=precomputed_model
+    )
 
     dice_metrics = raw_per_case_metrics(dice_raw, run.window_len)
     memo_metrics = raw_per_case_metrics(memo_raw, run.window_len)

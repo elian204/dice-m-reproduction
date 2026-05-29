@@ -65,6 +65,21 @@ checked later:
 python run_dice_memo_comparison.py --show-status
 ```
 
+## Model Artifacts
+
+Precomputed model artifacts live under
+`model_artifacts/dice_memo_comparison_unique_test_variants/`. Each run has a
+`model.pkl.gz` and `metadata.json` containing the discovered or reference model
+with mandatory and reachable-transition maps already attached. The experiment
+runner loads these artifacts automatically when present and falls back to
+computing the model/maps when an artifact is missing.
+
+Build or refresh artifacts from the configured splits:
+
+```bash
+python build_model_artifacts.py --validate-load
+```
+
 For a small smoke run, select a single run and cap the filtered input traces:
 
 ```bash
